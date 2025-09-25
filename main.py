@@ -1,7 +1,7 @@
 
 ## To activate : cd C:\python\AI_Web_Scraper.\ai\Scripts\activate
 ## Brightdata for selenium : https://brd-customer-hl_5b2633ca-zone-ai_scraper:74bri33hle5f@brd.superproxy.io:9515
-
+## 1
 import streamlit as st
 from scrape import (scrape_website,split_dom_content,clean_body_content,extraxt_body_content)
 from parse import parse_with_ollama
