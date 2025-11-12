@@ -48,7 +48,8 @@ def parse_with_ollama(dom_chunks, parse_Description):
                         "content": formatted_prompt,
                     }
                 ],
-                model="llama3-8b-8192",
+                # --- THIS IS THE ONLY LINE I CHANGED ---
+                model="llama-3.1-8b-instant", 
             )
             
             response = chat_completion.choices[0].message.content
@@ -59,6 +60,7 @@ def parse_with_ollama(dom_chunks, parse_Description):
                 
         except Exception as e:
             print(f"Error parsing chunk {i}: {e}")
+            # Show the actual error message on the Streamlit page
             st.error(f"Error parsing chunk {i}: {e}")
 
     return "\n\n".join(parsed_results)
