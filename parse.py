@@ -1,41 +1,64 @@
-from langchain_ollama import OllamaLLM
-from langchain_core.prompts import ChatPromptTemplate
+from groq import Groq
+import os
+import streamlit as st
 
 # --- NEW, STRONGER TEMPLATE ---
 # This prompt is much stricter. It FORCES the AI to be silent if it finds nothing.
 template = (
-    "You are an information extraction robot. You will be given text: {dom_content}. "
-    "Your one and only job is to find text that matches this user request: {parse_description}. "
-    "RULES: "
-    "1. ONLY output the extracted text. "
-    "2. If no text matches the request, or if the text is irrelevant, you MUST output a single, empty string. "
-    "3. Do NOT add 'None found', 'No section exists', or any other explanation. Just the data or nothing."
+    "You are a web scraper's AI assistant. Your ONLY job is to extract specific information from a chunk of website text."
+    "The user will provide the text chunk and an extraction goal."
+    "---"
+    "WEBSITE TEXT CHUNK: {dom_content}"
+    "---"
+    "EXTRACTION GOAL: {parse_description}"
+    "---"
+    "Follow these rules STRICTLY:"
+    "1. ONLY output the information that directly matches the EXTRACTION GOAL."
+    "2. If no information in the text chunk matches the goal, you MUST return an empty string. Do not say 'None found', 'I can't find this', or anything else. Just return ''. "
+    "3. Do not add any extra words, explanations, or greetings. Only output the raw, extracted data."
 )
 
-model = OllamaLLM(model="llama3")
+# --- NEW MODEL: Use the official Groq library ---
+try:
+    client = Groq(
+        api_key=os.environ.get("GROQ_API_KEY"),
+    )
+except Exception as e:
+    print(f"Error initializing Groq: {e}")
+    st.error(f"Error initializing Groq: {e}. Did you set the GROQ_API_KEY environment variable?")
+    client = None
 
 def parse_with_ollama(dom_chunks, parse_Description):
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | model
+    if client is None:
+        return "Error: Groq client is not configured. Check API key."
 
-    parsed_result = []
-
+    parsed_results = []
+    
     for i, chunk in enumerate(dom_chunks, start=1):
-        response = chain.invoke(
-            {"dom_content": chunk, "parse_description": parse_Description}
-            )
-        print(f"Parsed batch {i} of {len(dom_chunks)}")
+        print(f"Parsing batch {i} of {len(dom_chunks)}")
         
-        # --- NEW LOGIC ---
-        # Only add the response to our list if it's not empty or just whitespace.
-        # This filters out the "None found" chunks.
-        if response and response.strip():
-            parsed_result.append(response)
+        # Format the prompt for this chunk
+        formatted_prompt = template.format(dom_content=chunk, parse_description=parse_Description)
+        
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": formatted_prompt,
+                    }
+                ],
+                model="llama3-8b-8192",
+            )
+            
+            response = chat_completion.choices[0].message.content
+            
+            # Check our "empty string" rule
+            if response.strip(): # If the response isn't just whitespace
+                parsed_results.append(response)
+                
+        except Exception as e:
+            print(f"Error parsing chunk {i}: {e}")
+            st.error(f"Error parsing chunk {i}: {e}")
 
-    # --- NEW OUTPUT ---
-    # If the list is still empty after all chunks, then we really found nothing.
-    if not parsed_result:
-        return "The AI could not find any matching information on the page."
-
-    # Join the *good* results with a clear separator so you can see the different chunks.
-    return "\n\n---\n\n".join(parsed_result)
+    return "\n\n".join(parsed_results)
